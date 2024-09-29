@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Responsive Education Map</title>
+    <link href="https://cdn.datatables.net/1.10.24/css/jquery.dataTables.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
+</head>
+<body>
+
+<!-- Include external JSON file -->
+<script src="converted-data.js"></script>
+
+<div id="map" style="height: 500px;"></div>
+
+<!-- Modal for showing school details -->
+<div class="modal fade" id="lgaModal" tabindex="-1" aria-labelledby="lgaModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="lgaModalLabel">Schools in LGA</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <!-- LGA Statistics -->
+        <div class="row mb-4">
+          <div class="col-md-4">
+            <div class="card">
+              <div class="card-body text-center">
+                <h5>Total Schools</h5>
+                <p id="totalSchools" class="fs-3">0</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card">
+              <div class="card-body text-center">
+                <h5>Public Schools</h5>
+                <p id="publicSchools" class="fs-3">0</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card">
+              <div class="card-body text-center">
+                <h5>Private Schools</h5>
+                <p id="privateSchools" class="fs-3">0</p>
+              </div>
+            </div>
+          </div>
+        </div>
+<!-- Chart for Government vs Private schools -->
+<canvas id="ownershipChart" class="my-4" width="400" height="200"></canvas>
+
+        <!-- Responsive Table for schools -->
+        <div class="table-responsive">
+          <table id="schoolsTable" class="display table table-sm" style="width:100%">
+            <thead>
+              <tr>
+                <th>School Code</th>
+                <th>School Name</th>
+                <th>Category</th>
+                <th>Ownership</th>
+                <th>Town</th>
+                <th>Location</th>
+                <th>School Level</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        
+        <!-- Recommendation section -->
+        <div id="recommendation" class="my-4"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+    // Initialize the map
+    const map = L.map('map').setView([9.0820, 8.6753], 7); // Coordinates for Plateau State
+
+    // Tile Layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    // Group schools by LGA and get unique LGA coordinates
+    const lgaData = {};
+
+    schoolData.forEach(school => {
+        if (!lgaData[school.lga]) {
+            lgaData[school.lga] = {
+                schools: [],
+                Longitude: parseFloat(school.Longitutde),
+                Latitude: parseFloat(school.Latitude)
+            };
+        }
+        lgaData[school.lga].schools.push(school);
+    });
+
+    // Global variable for Chart instance
+    let ownershipChartInstance;
+
+    // Function to display schools in the clicked LGA
+    function showLgaSchools(lgaName) {
+        const lgaSchools = lgaData[lgaName].schools;
+
+        // Populate the table
+        const tableBody = $('#schoolsTable tbody');
+        tableBody.empty();
+        lgaSchools.forEach(school => {
+            tableBody.append(`
+                <tr>
+                  <td>${school.school_code}</td>
+                  <td>${school.school_name}</td>
+                  <td>${school.category}</td>
+                  <td>${school.ownership}</td>
+                  <td>${school.town}</td>
+                  <td>${school.location}</td>
+                  <td>${school.school_level}</td>
+                </tr>
+            `);
+        });
+
+        // Update Statistics
+        $('#totalSchools').text(lgaSchools.length);
+        const publicSchools = lgaSchools.filter(school => school.ownership === "PUBLIC").length;
+        const privateSchools = lgaSchools.length - publicSchools;
+        $('#publicSchools').text(publicSchools);
+        $('#privateSchools').text(privateSchools);
+
+        // Initialize DataTable
+        $('#schoolsTable').DataTable();
+
+        // Destroy previous chart instance if it exists
+        if (ownershipChartInstance) {
+            ownershipChartInstance.destroy();
+        }
+
+        // Create new Chart for Ownership (Public vs Private)
+        ownershipChartInstance = new Chart(document.getElementById('ownershipChart'), {
+            type: 'pie',
+            data: {
+                labels: ['Public', 'Private'],
+                datasets: [{
+                    data: [publicSchools, privateSchools],
+                    backgroundColor: ['#36A2EB', '#FF6384']
+                }]
+            }
+        });
+
+        // Recommendation based on location
+        const ruralSchools = lgaSchools.filter(school => school.location === "RURAL").length;
+        const urbanSchools = lgaSchools.length - ruralSchools;
+        let recommendation = '';
+        if (ruralSchools > urbanSchools) {
+            recommendation = "Recommendation: More schools should be built in urban areas.";
+        } else {
+            recommendation = "Recommendation: More schools should be built in rural areas.";
+        }
+        $('#recommendation').text(recommendation);
+
+        // Show the modal
+        $('#lgaModal').modal('show');
+    }
+
+    // Loop through lgaData to add markers for each LGA
+    Object.keys(lgaData).forEach(lga => {
+        const lgaInfo = lgaData[lga];
+        if (lgaInfo.Latitude && lgaInfo.Longitude) {
+            L.marker([lgaInfo.Latitude, lgaInfo.Longitude]).addTo(map)
+                .bindPopup(lga)
+                .on('click', function() {
+                    showLgaSchools(lga);
+                });
+        }
+    });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -134,7 +134,7 @@
 
         // Update Statistics
         $('#totalSchools').text(lgaSchools.length);
-        const publicSchools = lgaSchools.filter(school => school.ownership === "PUBLIC").length;
+        const publicSchools = lgaSchools.filter(school => school.category === "PUBLIC").length;
         const privateSchools = lgaSchools.length - publicSchools;
         $('#publicSchools').text(publicSchools);
         $('#privateSchools').text(privateSchools);
